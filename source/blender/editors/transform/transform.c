@@ -108,9 +108,6 @@ void setTransformViewMatrices(TransInfo *t)
     unit_m4(t->persinv);
     t->persp = RV3D_ORTHO;
   }
-
-  calculateCenter2D(t);
-  calculateCenterLocal(t, t->center_global);
 }
 
 void setTransformViewAspect(TransInfo *t, float r_aspect[3])
