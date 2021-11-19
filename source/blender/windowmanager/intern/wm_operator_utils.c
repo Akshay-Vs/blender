@@ -364,6 +364,10 @@ void WM_operator_type_modal_from_exec_for_object_edit_coords(wmOperatorType *ot)
 
 bool WM_operator_do_navigation(bContext *C, wmOperator *op, const wmEvent *event)
 {
+  if (!U.experimental.use_navigate_while_transform) {
+    return false;
+  }
+
   const char *op_names[] = {
       /* 3D View. */
       "VIEW3D_OT_zoom",
@@ -371,7 +375,7 @@ bool WM_operator_do_navigation(bContext *C, wmOperator *op, const wmEvent *event
       "VIEW3D_OT_move",
       "VIEW3D_OT_view_pan",
       "VIEW3D_OT_dolly",
-      "VIEW3D_OT_view_orbit",
+      // "VIEW3D_OT_view_orbit",
       "VIEW3D_OT_view_roll",
 #ifdef WITH_INPUT_NDOF
       "VIEW3D_OT_ndof_orbit_zoom",
@@ -402,12 +406,12 @@ bool WM_operator_do_navigation(bContext *C, wmOperator *op, const wmEvent *event
   static int kmi_ot_len;
 
   /* Lazy initialization (avoids having to allocating a context). */
+  static wmOperator *op_last = NULL;
   static wmOperatorType *ot_last = NULL;
-  static char spacetype_last = SPACE_EMPTY;
   SpaceLink *sl = CTX_wm_space_data(C);
-  if ((ot_last != op->type) || (spacetype_last != sl->spacetype)) {
+  if ((op_last != op) || (ot_last != op->type)) {
+    op_last = op;
     ot_last = op->type;
-    spacetype_last = sl->spacetype;
 
     wmWindowManager *wm = CTX_wm_manager(C);
     wmKeyMap *km;

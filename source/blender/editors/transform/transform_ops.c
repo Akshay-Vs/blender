@@ -440,6 +440,14 @@ static int transform_modal(bContext *C, wmOperator *op, const wmEvent *event)
   exit_code = transformEvent(t, event);
   t->context = NULL;
 
+  if ((exit_code == OPERATOR_PASS_THROUGH) && WM_operator_do_navigation(C, op, event)) {
+    t->flag |= T_VIEW_DIRTY;
+    return OPERATOR_RUNNING_MODAL;
+  }
+  else if (t->flag & T_VIEW_DIRTY) {
+    tranformViewUpdate(t);
+  }
+
   /* XXX, workaround: active needs to be calculated before transforming,
    * since we're not reading from 'td->center' in this case. see: T40241 */
   if (t->tsnap.target == SCE_SNAP_TARGET_ACTIVE) {
@@ -1377,7 +1385,7 @@ static wmKeyMapItem **navigation_keymaps(bContext *C, int *r_kmi_len)
       "VIEW3D_OT_move",
       "VIEW3D_OT_view_pan",
       "VIEW3D_OT_dolly",
-      "VIEW3D_OT_view_orbit",
+      //"VIEW3D_OT_view_orbit",
       "VIEW3D_OT_view_roll",
 #ifdef WITH_INPUT_NDOF
       "VIEW3D_OT_ndof_orbit_zoom",
@@ -1415,7 +1423,7 @@ static wmKeyMapItem **navigation_keymaps(bContext *C, int *r_kmi_len)
       if (kmi->flag & KMI_INACTIVE) {
         continue;
       }
-      for (int j = 0; i < ARRAY_SIZE(op_names); j++) {
+      for (int j = 0; j < ARRAY_SIZE(op_names); j++) {
         if (STREQ(kmi->idname, op_names[j])) {
           km_items[kmi_len++] = kmi;
           break;
