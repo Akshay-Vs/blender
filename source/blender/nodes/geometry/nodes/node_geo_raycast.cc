@@ -25,9 +25,9 @@
 
 #include "node_geometry_util.hh"
 
-using namespace blender::bke::mesh_surface_sample;
+namespace blender::nodes::node_geo_raycast_cc {
 
-namespace blender::nodes {
+using namespace blender::bke::mesh_surface_sample;
 
 static void geo_node_raycast_declare(NodeDeclarationBuilder &b)
 {
@@ -205,10 +205,10 @@ class RaycastFunction : public fn::MultiFunction {
   std::unique_ptr<FieldEvaluator> target_evaluator_;
   const GVArray *target_data_ = nullptr;
 
-  /* Always evaluate the target domain data on the point domain. Eventually this could be
-   * exposed as an option or determined automatically from the field inputs in order to avoid
-   * losing information if the target field is on a different domain. */
-  const AttributeDomain domain_ = ATTR_DOMAIN_POINT;
+  /* Always evaluate the target domain data on the face corner domain because it contains the most
+   * information. Eventually this could be exposed as an option or determined automatically from
+   * the field inputs for better performance. */
+  const AttributeDomain domain_ = ATTR_DOMAIN_CORNER;
 
   fn::MFSignature signature_;
 
@@ -426,20 +426,22 @@ static void geo_node_raycast_exec(GeoNodeExecParams params)
   }
 }
 
-}  // namespace blender::nodes
+}  // namespace blender::nodes::node_geo_raycast_cc
 
 void register_node_type_geo_raycast()
 {
+  namespace file_ns = blender::nodes::node_geo_raycast_cc;
+
   static bNodeType ntype;
 
   geo_node_type_base(&ntype, GEO_NODE_RAYCAST, "Raycast", NODE_CLASS_GEOMETRY, 0);
   node_type_size_preset(&ntype, NODE_SIZE_MIDDLE);
-  node_type_init(&ntype, blender::nodes::geo_node_raycast_init);
-  node_type_update(&ntype, blender::nodes::geo_node_raycast_update);
+  node_type_init(&ntype, file_ns::geo_node_raycast_init);
+  node_type_update(&ntype, file_ns::geo_node_raycast_update);
   node_type_storage(
       &ntype, "NodeGeometryRaycast", node_free_standard_storage, node_copy_standard_storage);
-  ntype.declare = blender::nodes::geo_node_raycast_declare;
-  ntype.geometry_node_execute = blender::nodes::geo_node_raycast_exec;
-  ntype.draw_buttons = blender::nodes::geo_node_raycast_layout;
+  ntype.declare = file_ns::geo_node_raycast_declare;
+  ntype.geometry_node_execute = file_ns::geo_node_raycast_exec;
+  ntype.draw_buttons = file_ns::geo_node_raycast_layout;
   nodeRegisterType(&ntype);
 }

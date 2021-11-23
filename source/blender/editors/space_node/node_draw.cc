@@ -843,29 +843,43 @@ struct SocketTooltipData {
   bNodeSocket *socket;
 };
 
-static void create_inspection_string_for_generic_value(const geo_log::GenericValueLog &value_log,
-                                                       std::stringstream &ss)
+static void create_inspection_string_for_generic_value(const GPointer value, std::stringstream &ss)
 {
   auto id_to_inspection_string = [&](ID *id, short idcode) {
     ss << (id ? id->name + 2 : TIP_("None")) << " (" << BKE_idtype_idcode_to_name(idcode) << ")";
   };
 
-  const GPointer value = value_log.value();
   const CPPType &type = *value.type();
+  const void *buffer = value.get();
   if (type.is<Object *>()) {
-    id_to_inspection_string((ID *)*value.get<Object *>(), ID_OB);
+    id_to_inspection_string((ID *)buffer, ID_OB);
   }
   else if (type.is<Material *>()) {
-    id_to_inspection_string((ID *)*value.get<Material *>(), ID_MA);
+    id_to_inspection_string((ID *)buffer, ID_MA);
   }
   else if (type.is<Tex *>()) {
-    id_to_inspection_string((ID *)*value.get<Tex *>(), ID_TE);
+    id_to_inspection_string((ID *)buffer, ID_TE);
   }
   else if (type.is<Image *>()) {
-    id_to_inspection_string((ID *)*value.get<Image *>(), ID_IM);
+    id_to_inspection_string((ID *)buffer, ID_IM);
   }
   else if (type.is<Collection *>()) {
-    id_to_inspection_string((ID *)*value.get<Collection *>(), ID_GR);
+    id_to_inspection_string((ID *)buffer, ID_GR);
+  }
+  else if (type.is<int>()) {
+    ss << *(int *)buffer << TIP_(" (Integer)");
+  }
+  else if (type.is<float>()) {
+    ss << *(float *)buffer << TIP_(" (Float)");
+  }
+  else if (type.is<blender::float3>()) {
+    ss << *(blender::float3 *)buffer << TIP_(" (Vector)");
+  }
+  else if (type.is<bool>()) {
+    ss << ((*(bool *)buffer) ? TIP_("True") : TIP_("False")) << TIP_(" (Boolean)");
+  }
+  else if (type.is<std::string>()) {
+    ss << *(std::string *)buffer << TIP_(" (String)");
   }
 }
 
@@ -880,21 +894,7 @@ static void create_inspection_string_for_gfield(const geo_log::GFieldValueLog &v
     if (field) {
       BUFFER_FOR_CPP_TYPE_VALUE(type, buffer);
       blender::fn::evaluate_constant_field(field, buffer);
-      if (type.is<int>()) {
-        ss << *(int *)buffer << TIP_(" (Integer)");
-      }
-      else if (type.is<float>()) {
-        ss << *(float *)buffer << TIP_(" (Float)");
-      }
-      else if (type.is<blender::float3>()) {
-        ss << *(blender::float3 *)buffer << TIP_(" (Vector)");
-      }
-      else if (type.is<bool>()) {
-        ss << ((*(bool *)buffer) ? TIP_("True") : TIP_("False")) << TIP_(" (Boolean)");
-      }
-      else if (type.is<std::string>()) {
-        ss << *(std::string *)buffer << TIP_(" (String)");
-      }
+      create_inspection_string_for_generic_value({type, buffer}, ss);
       type.destruct(buffer);
     }
     else {
@@ -1023,7 +1023,7 @@ static std::optional<std::string> create_socket_inspection_string(bContext *C,
   std::stringstream ss;
   if (const geo_log::GenericValueLog *generic_value_log =
           dynamic_cast<const geo_log::GenericValueLog *>(value_log)) {
-    create_inspection_string_for_generic_value(*generic_value_log, ss);
+    create_inspection_string_for_generic_value(generic_value_log->value(), ss);
   }
   if (const geo_log::GFieldValueLog *gfield_value_log =
           dynamic_cast<const geo_log::GFieldValueLog *>(value_log)) {
@@ -2116,15 +2116,15 @@ static void count_multi_input_socket_links(bNodeTree *ntree, SpaceNode *snode)
     }
   }
   /* Count temporary links going into this socket. */
-  LISTBASE_FOREACH (bNodeLinkDrag *, nldrag, &snode->runtime->linkdrag) {
-    LISTBASE_FOREACH (LinkData *, linkdata, &nldrag->links) {
-      bNodeLink *link = (bNodeLink *)linkdata->data;
+  if (snode->runtime->linkdrag) {
+    for (const bNodeLink *link : snode->runtime->linkdrag->links) {
       if (link->tosock && (link->tosock->flag & SOCK_MULTI_INPUT)) {
         int &count = counts.lookup_or_add(link->tosock, 0);
         count++;
       }
     }
   }
+
   LISTBASE_FOREACH (bNode *, node, &ntree->nodes) {
     LISTBASE_FOREACH (bNodeSocket *, socket, &node->inputs) {
       if (socket->flag & SOCK_MULTI_INPUT) {
@@ -2383,9 +2383,9 @@ void node_draw_space(const bContext *C, ARegion *region)
     /* Temporary links. */
     GPU_blend(GPU_BLEND_ALPHA);
     GPU_line_smooth(true);
-    LISTBASE_FOREACH (bNodeLinkDrag *, nldrag, &snode->runtime->linkdrag) {
-      LISTBASE_FOREACH (LinkData *, linkdata, &nldrag->links) {
-        node_draw_link(C, v2d, snode, (bNodeLink *)linkdata->data);
+    if (snode->runtime->linkdrag) {
+      for (const bNodeLink *link : snode->runtime->linkdrag->links) {
+        node_draw_link(C, v2d, snode, link);
       }
     }
     GPU_line_smooth(false);
